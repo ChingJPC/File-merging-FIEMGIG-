@@ -2,37 +2,27 @@ import os
 import pandas as pd
 from datetime import datetime
 import xmltodict
+from customtkinter import CTk, CTkFrame, CTkEntry, CTkLabel, CTkButton, CTkCheckBox, CTkFont, CTkImage
+from tkinter import PhotoImage, filedialog, messagebox, Frame, Label, Tk, Text
+from PIL import Image, ImageTk
+import tkinter as tk
+import sys
+
+# Redirigir stdout a un widget Text
+class StdoutRedirector(object):
+    def __init__(self, text_widget):
+        self.text_space = text_widget
+
+    def write(self, string):
+        self.text_space.insert(tk.END, string)
+        self.text_space.see(tk.END)
 
 # Configuración de pandas para mostrar todas las columnas
-pd.set_option('display.max_columns', 10000)
-
-# Definir las rutas de las carpetas y los nombres de los archivos de salida
-carpetas = {
-    'PE04': 'C:\\Users\\fenix\\Downloads\\SOF\\PE04',
-    'JUICIOS': 'C:\\Users\\fenix\\Downloads\\SOF\\JUICIOS',
-    'APRENDICES': 'C:\\Users\\fenix\\Downloads\\SOF\\APRENDICES',
-    'PE04-QUITARDUPLICADO':'C:\\Users\\fenix\\Downloads\\SOF\\Archivo_Final\\P04-FINAL'
-}
-
-for f in carpetas:print(f)
-
-# Directorio de salida
-directorio_salida = 'C:\\Users\\fenix\\Downloads\\SOF\\Archivo_Final'
-
-# Crear el directorio de salida si no existe
-if not os.path.exists(directorio_salida):
-    os.makedirs(directorio_salida)
-
-# Directorio específico para los archivos XML convertidos
-directorio_xml_convertidos = os.path.join(directorio_salida, 'P04-FINAL')
-
-# Crear el directorio de XML convertidos si no existe
-if not os.path.exists(directorio_xml_convertidos):
-    os.makedirs(directorio_xml_convertidos)
+pd.set_option('display.max_columns', None)
 
 # Función para convertir archivos XML a DataFrame
 def xml_to_df(xml):
-    with open(xml, 'r', encoding='utf-8') as f:  # Especificar la codificación como 'utf-8'
+    with open(xml, 'r', encoding='utf-8') as f:
         xml_data = f.read().replace("&", "&amp;")
     xml_dict = xmltodict.parse(xml_data)
 
@@ -66,19 +56,34 @@ def convert_xml_to_xls(ruta_carpeta, destino_carpeta):
         except Exception as e:
             print(f"Error al convertir el archivo {file_path}: {e}")
 
-# Convertir archivos XML de la carpeta PE04 y guardarlos en P04-FINAL
-convert_xml_to_xls(carpetas['PE04'], directorio_xml_convertidos)
-
 # Función para ordenar archivos por fecha y combinarlos en un solo archivo Excel
 def ordenar_combinar_y_eliminar_duplicados(carpeta_origen, carpeta_destino):
     archivos = os.listdir(carpeta_origen)
     archivos = [os.path.join(carpeta_origen, f) for f in archivos if f.endswith('.xlsx')]
 
-    archivos_ordenados = sorted(archivos, key=lambda x: datetime.strptime(x.split('_')[-1].split('.')[0], '%Y'), reverse=True)
+    archivos_validos = []
+    for archivo in archivos:
+        try:
+            nombre_archivo = os.path.basename(archivo)
+            fecha_str = nombre_archivo.split('_')[-1].split('.')[0]
+            
+            if fecha_str.isdigit():
+                if len(fecha_str) == 4:  # Si es un año como 2024
+                    fecha = datetime.strptime(fecha_str, '%Y')
+                else:  # Si es un número de secuencia como 1, 2, 3
+                    fecha = int(fecha_str)
+            else:
+                raise ValueError("Formato de fecha no reconocido")
+            
+            archivos_validos.append((fecha, archivo))
+        except ValueError:
+            print(f"Archivo con nombre inválido para el formato de fecha: {archivo}")
+
+    archivos_ordenados = sorted(archivos_validos, key=lambda x: x[0], reverse=True)
 
     contenido_visto = set()
     dfs = []
-    for archivo in archivos_ordenados:
+    for _, archivo in archivos_ordenados:
         try:
             df = pd.read_excel(archivo)
             contenido_hash = df.to_csv(index=False)
@@ -101,8 +106,7 @@ def ordenar_combinar_y_eliminar_duplicados(carpeta_origen, carpeta_destino):
     else:
         print("No hay objetos para concatenar. La lista 'dfs' está vacía.")
 
-
-        # Función para leer archivos Excel con diferentes encabezados y agregar una columna con el nombre del archivo
+# Función para leer archivos Excel con diferentes encabezados y agregar una columna con el nombre del archivo
 def read_excel_with_header_and_filename(file_path, header, filename):
     try:
         df = pd.read_excel(file_path, header=header)
@@ -113,7 +117,7 @@ def read_excel_with_header_and_filename(file_path, header, filename):
         return pd.DataFrame()
 
 # Función para combinar archivos y eliminar filas duplicadas
-def combinar_y_eliminar_duplicados(nombre_carpeta, ruta_carpeta, header):
+def combinar_y_eliminar_duplicados(nombre_carpeta, ruta_carpeta, header, directorio_salida):
     dataframes = []
 
     files = [f for f in os.listdir(ruta_carpeta) if f.endswith('.xlsx') or f.endswith('.xls')]
@@ -140,10 +144,6 @@ def combinar_y_eliminar_duplicados(nombre_carpeta, ruta_carpeta, header):
     else:
         print(f"No se encontraron archivos Excel en la carpeta: {ruta_carpeta}")
 
-# Procesar carpetas JUICIOS y APRENDICES
-combinar_y_eliminar_duplicados('JUICIOS', carpetas['JUICIOS'], header=12)
-combinar_y_eliminar_duplicados('APRENDICES', carpetas['APRENDICES'], header=4)
-
 # Función para procesar los archivos del PE04
 def procesar_archivos_pe04(ruta_carpeta_pe04, destino_carpeta):
     files_pe04 = [f for f in os.listdir(ruta_carpeta_pe04) if f.endswith('.xlsx')]
@@ -166,19 +166,141 @@ def procesar_archivos_pe04(ruta_carpeta_pe04, destino_carpeta):
     else:
         print("No se encontraron archivos Excel en la carpeta PE04")
 
-# Procesar los archivos del PE04
-procesar_archivos_pe04(carpetas['PE04-QUITARDUPLICADO'], directorio_salida)
+def procesar():
+        try:
+            carpetas = {
+                'PE04': entry_pe04.get(),
+                'JUICIOS': entry_juicios.get(),
+                'APRENDICES': entry_aprendices.get(),
+                'PE04-QUITARDUPLICADO': entry_salida.get()
+            }
+            directorio_salida = entry_salida.get()
 
-# Procesar carpetas JUICIOS y APRENDICES
-combinar_y_eliminar_duplicados('JUICIOS', carpetas['JUICIOS'], header=12)
-combinar_y_eliminar_duplicados('APRENDICES', carpetas['APRENDICES'], header=4)
+            # Directorio específico para los archivos XML convertidos
+            directorio_xml_convertidos = os.path.join(directorio_salida, 'P04-FINAL')
 
-# Directorio para archivo combinado sin duplicados
-directorio_xml_combinado = os.path.join(directorio_salida, 'P04-NOREPETIDOS')
+            # Crear el directorio de XML convertidos si no existe
+            if not os.path.exists(directorio_xml_convertidos):
+                os.makedirs(directorio_xml_convertidos)
 
-# Crear el directorio del archivo combinado si no existe
-if not os.path.exists(directorio_xml_combinado):
-    os.makedirs(directorio_xml_combinado)
+            # Convertir archivos XML de la carpeta PE04 y guardarlos en P04-FINAL
+            convert_xml_to_xls(carpetas['PE04'], directorio_xml_convertidos)
 
-# Ordenar, combinar y eliminar duplicados en archivos XML convertidos y guardarlos en P04-NOREPETIDOS
-ordenar_combinar_y_eliminar_duplicados(directorio_xml_convertidos, directorio_xml_combinado)
+            # Ordenar, combinar y eliminar duplicados en archivos XML convertidos y guardarlos en P04-NOREPETIDOS
+            ordenar_combinar_y_eliminar_duplicados(directorio_xml_convertidos, carpetas['PE04-QUITARDUPLICADO'])
+
+            # Combinar archivos en la carpeta JUICIOS y eliminar duplicados
+            combinar_y_eliminar_duplicados('JUICIOS', carpetas['JUICIOS'], header=12, directorio_salida=directorio_salida)
+
+            # Combinar archivos en la carpeta APRENDICES y eliminar duplicados
+            combinar_y_eliminar_duplicados('APRENDICES', carpetas['APRENDICES'], header=4, directorio_salida=directorio_salida)
+
+            # Procesar los archivos del PE04
+            procesar_archivos_pe04(directorio_xml_convertidos, carpetas['PE04-QUITARDUPLICADO'])
+
+            messagebox.showinfo("Éxito", "Procesamiento completado con éxito")
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error durante el procesamiento: {e}")
+
+
+# Función para seleccionar una carpeta
+def seleccionar_carpeta(tipo):
+    carpeta = filedialog.askdirectory()
+    if carpeta:
+        if tipo == 'PE04':
+            entry_pe04.delete(0, tk.END)
+            entry_pe04.insert(0, carpeta)
+        elif tipo == 'JUICIOS':
+            entry_juicios.delete(0, tk.END)
+            entry_juicios.insert(0, carpeta)
+        elif tipo == 'APRENDICES':
+            entry_aprendices.delete(0, tk.END)
+            entry_aprendices.insert(0, carpeta)
+        elif tipo == 'SALIDA':
+            entry_salida.delete(0, tk.END)
+            entry_salida.insert(0, carpeta)
+
+
+
+# Crear la ventana principal
+root = CTk()
+root.title("File merging (FIEMG)")
+root.configure(bg='black')
+root.config(bg='#EFEFEF')
+root.resizable(False, False)
+
+# Iconos del Software
+logogeneral = PhotoImage(file='imagenes/filemergin.png')
+logo = PhotoImage(file='imagenes/senalogo.png')
+
+# Redimensionar la imagen
+new_size = (150, 150)  # Nuevo tamaño (ancho, alto)
+image = Image.open('imagenes/filemergin.png')
+resized_image = image.resize(new_size)
+logogeneral = ImageTk.PhotoImage(resized_image)
+
+# Crear el frame para el logo grande
+frame_logo = CTkFrame(root, bg_color='#721630', fg_color='#721630')
+frame_logo.pack(fill=tk.BOTH)
+
+# Asignar la imagen al label y expandirlo para ocupar toda la celda del grid
+label_logo = Label(frame_logo, image=logogeneral, bg='#721630')
+label_logo.pack(side=tk.LEFT, padx=10)
+
+# Crear el frame para los widgets de la interfaz
+frame_widgets = CTkFrame(root, bg_color=root.cget('bg'), fg_color=root.cget('bg'))
+frame_widgets.pack(fill=tk.BOTH, pady=(100, 0))
+
+# Definir una fuente personalizada
+fuente_subtitulos = CTkFont(family="Helvetica", size=15, weight="bold")
+fuente_rutas = CTkFont(family="Helvetica", size=12, slant="italic")
+
+# Crear widgets de la interfaz
+CTkLabel(frame_widgets, text="Selecciona la carpeta de PE04: ", text_color="#721630", font=fuente_subtitulos, bg_color=root.cget('bg')).grid(row=0, column=0, padx=(20,50), pady=(20,20), sticky='E')
+entry_pe04 = CTkEntry(frame_widgets, width=300, font=fuente_rutas, border_color='#721630', fg_color="#A91D3A", bg_color=root.cget('bg'))
+entry_pe04.grid(row=0, column=1, padx=(0,50), pady=(20, 20), sticky='W')
+CTkButton(frame_widgets, text="Seleccionar", fg_color='#721630', bg_color=root.cget('bg'), command=lambda: seleccionar_carpeta('PE04')).grid(row=0, column=2, padx=(0,20), pady=(20,20), sticky='W')
+
+CTkLabel(frame_widgets, text="Selecciona la carpeta de JUICIOS: ", text_color="#721630", font=fuente_subtitulos, bg_color=root.cget('bg')).grid(row=1, column=0, padx=(20,50), pady=20, sticky='E')
+entry_juicios = CTkEntry(frame_widgets, width=300, border_color='#721630', fg_color="#A91D3A", bg_color=root.cget('bg'))
+entry_juicios.grid(row=1, column=1, padx=(0,50), pady=20, sticky='W')
+CTkButton(frame_widgets, text="Seleccionar", fg_color='#721630', bg_color=root.cget('bg'), command=lambda: seleccionar_carpeta('JUICIOS')).grid(row=1, column=2, padx=(0,20), pady=20, sticky='W')
+
+CTkLabel(frame_widgets, text="Selecciona la carpeta de APRENDICES: ", text_color="#721630", font=fuente_subtitulos, bg_color=root.cget('bg')).grid(row=2, column=0, padx=(20,50), pady=20, sticky='E')
+entry_aprendices = CTkEntry(frame_widgets, width=300, border_color='#721630', fg_color="#A91D3A", bg_color=root.cget('bg'))
+entry_aprendices.grid(row=2, column=1, padx=(0,50), pady=20, sticky='W')
+CTkButton(frame_widgets, text="Seleccionar", fg_color='#721630', bg_color=root.cget('bg'), command=lambda: seleccionar_carpeta('APRENDICES')).grid(row=2, column=2, padx=(0,20), pady=20, sticky='W')
+
+CTkLabel(frame_widgets, text="Selecciona la carpeta de salida: ", text_color="#721630", font=fuente_subtitulos, bg_color=root.cget('bg')).grid(row=3, column=0, padx=(20,50), pady=20, sticky='E')
+entry_salida = CTkEntry(frame_widgets, width=300, border_color='#721630', fg_color="#A91D3A", bg_color=root.cget('bg'))
+entry_salida.grid(row=3, column=1, padx=(0,50), pady=20, sticky='W')
+CTkButton(frame_widgets, text="Seleccionar", fg_color='#721630', bg_color=root.cget('bg'), command=lambda: seleccionar_carpeta('SALIDA')).grid(row=3, column=2, padx=(0,20), pady=20, sticky='W')
+CTkButton(frame_widgets, text="Procesar Archivos", fg_color='#721630', bg_color=root.cget('bg'), font=("Helvetica", 15, "bold"), command=procesar).grid(row=4, column=2, columnspan=3, pady=30, padx=(0,50), sticky='n')
+
+# Crear un frame para mostrar la salida del proceso
+frame_output = CTkFrame(root, bg_color='#721630', fg_color=root.cget('bg'))
+frame_output.pack(fill=tk.BOTH, padx=10, pady=(0,10))
+
+# Crear un widget Text dentro del frame de salida con texto en color rojo
+output_text = Text(frame_output, wrap=tk.WORD,  height=10, width=50,fg='white', bg='#721630')
+output_text.pack(expand=True, fill=tk.BOTH)
+
+# Redirigir stdout al widget Text
+sys.stdout = StdoutRedirector(output_text)
+
+# Obtener el ancho y alto de la pantalla
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+
+# Calcular las coordenadas x e y para que la ventana esté centrada
+x = (screen_width - 860) // 2  # 860 es el ancho de la ventana
+y = (screen_height - 700) // 2  # 700 es la altura de la ventana
+
+# Establecer la posición de la ventana en el centro de la pantalla
+root.geometry("+{}+{}".format(x, y))
+
+# Icono Software
+root.call('wm','iconphoto',root._w, logo)
+
+# Iniciar el bucle principal de la aplicación
+root.mainloop()
