@@ -7,6 +7,9 @@ from tkinter import PhotoImage, filedialog, messagebox, Frame, Label, Tk, Text
 from PIL import Image, ImageTk
 import tkinter as tk
 import sys
+from tkinter import ttk
+from tkinter import filedialog
+import time
 
 # Redirigir stdout a un widget Text
 class StdoutRedirector(object):
@@ -167,41 +170,80 @@ def procesar_archivos_pe04(ruta_carpeta_pe04, destino_carpeta):
         print("No se encontraron archivos Excel en la carpeta PE04")
 
 def procesar():
-        try:
-            carpetas = {
-                'PE04': entry_pe04.get(),
-                'JUICIOS': entry_juicios.get(),
-                'APRENDICES': entry_aprendices.get(),
-                'PE04-QUITARDUPLICADO': entry_salida.get()
-            }
-            directorio_salida = entry_salida.get()
+    try:
+        carpetas = {
+            'PE04': entry_pe04.get(),
+            'JUICIOS': entry_juicios.get(),
+            'APRENDICES': entry_aprendices.get(),
+            'PE04-QUITARDUPLICADO': entry_salida.get()
+        }
+        directorio_salida = entry_salida.get()
 
-            # Directorio específico para los archivos XML convertidos
-            directorio_xml_convertidos = os.path.join(directorio_salida, 'P04-FINAL')
+        # Directorio específico para los archivos XML convertidos
+        directorio_xml_convertidos = os.path.join(directorio_salida, 'P04-FINAL')
 
-            # Crear el directorio de XML convertidos si no existe
-            if not os.path.exists(directorio_xml_convertidos):
-                os.makedirs(directorio_xml_convertidos)
+        # Crear el directorio de XML convertidos si no existe
+        if not os.path.exists(directorio_xml_convertidos):
+            os.makedirs(directorio_xml_convertidos)
 
-            # Convertir archivos XML de la carpeta PE04 y guardarlos en P04-FINAL
-            convert_xml_to_xls(carpetas['PE04'], directorio_xml_convertidos)
+        # Mostrar pantalla de carga
+        loading_screen, progress = show_loading_screen()
+        total_steps = 4
+        current_step = 0
 
-            # Ordenar, combinar y eliminar duplicados en archivos XML convertidos y guardarlos en P04-NOREPETIDOS
-            ordenar_combinar_y_eliminar_duplicados(directorio_xml_convertidos, carpetas['PE04-QUITARDUPLICADO'])
+        # Convertir archivos XML de la carpeta PE04 y guardarlos en P04-FINAL
+        convert_xml_to_xls(carpetas['PE04'], directorio_xml_convertidos)
+        current_step += 1
+        update_progress(progress, (current_step / total_steps) * 100)
 
-            # Combinar archivos en la carpeta JUICIOS y eliminar duplicados
-            combinar_y_eliminar_duplicados('JUICIOS', carpetas['JUICIOS'], header=12, directorio_salida=directorio_salida)
+        # Ordenar, combinar y eliminar duplicados en archivos XML convertidos y guardarlos en P04-NOREPETIDOS
+        ordenar_combinar_y_eliminar_duplicados(directorio_xml_convertidos, carpetas['PE04-QUITARDUPLICADO'])
+        current_step += 1
+        update_progress(progress, (current_step / total_steps) * 100)
 
-            # Combinar archivos en la carpeta APRENDICES y eliminar duplicados
-            combinar_y_eliminar_duplicados('APRENDICES', carpetas['APRENDICES'], header=4, directorio_salida=directorio_salida)
+        # Combinar archivos en la carpeta JUICIOS y eliminar duplicados
+        combinar_y_eliminar_duplicados('JUICIOS', carpetas['JUICIOS'], header=12, directorio_salida=directorio_salida)
+        current_step += 1
+        update_progress(progress, (current_step / total_steps) * 100)
 
-            # Procesar los archivos del PE04
-            procesar_archivos_pe04(directorio_xml_convertidos, carpetas['PE04-QUITARDUPLICADO'])
+        # Combinar archivos en la carpeta APRENDICES y eliminar duplicados
+        combinar_y_eliminar_duplicados('APRENDICES', carpetas['APRENDICES'], header=4, directorio_salida=directorio_salida)
+        current_step += 1
+        update_progress(progress, (current_step / total_steps) * 100)
 
-            messagebox.showinfo("Éxito", "Procesamiento completado con éxito")
-        except Exception as e:
-            messagebox.showerror("Error", f"Ocurrió un error durante el procesamiento: {e}")
+        # Procesar los archivos del PE04
+        procesar_archivos_pe04(directorio_xml_convertidos, carpetas['PE04-QUITARDUPLICADO'])
 
+        # Cerrar la pantalla de carga
+        loading_screen.destroy()
+        
+        messagebox.showinfo("Éxito", "Procesamiento completado con éxito")
+    except Exception as e:
+        messagebox.showerror("Error", f"Ocurrió un error durante el procesamiento: {e}")
+
+# Función para mostrar la pantalla de carga
+def show_loading_screen():
+    loading_screen = tk.Toplevel(root)
+    loading_screen.title("Processing...")
+    loading_screen.geometry("300x100")
+
+    tk.Label(loading_screen, text="Processing files... Please wait.").pack(pady=10)
+
+    progress = ttk.Progressbar(loading_screen, orient="horizontal", length=250, mode="determinate")
+    progress.pack(pady=20)
+
+    # Simulación de progreso
+    progress["maximum"] = 100
+    progress["value"] = 0
+
+    root.update_idletasks()
+    
+    return loading_screen, progress
+
+# Función para actualizar la barra de progreso
+def update_progress(progress, value):
+    progress["value"] = value
+    root.update_idletasks()
 
 # Función para seleccionar una carpeta
 def seleccionar_carpeta(tipo):
@@ -219,8 +261,6 @@ def seleccionar_carpeta(tipo):
         elif tipo == 'SALIDA':
             entry_salida.delete(0, tk.END)
             entry_salida.insert(0, carpeta)
-
-
 
 # Crear la ventana principal
 root = CTk()
@@ -301,6 +341,9 @@ root.geometry("+{}+{}".format(x, y))
 
 # Icono Software
 root.call('wm','iconphoto',root._w, logo)
+
+# Crear una barra de progreso
+progreso = ttk.Progressbar(frame_widgets, orient='horizontal', length=300, mode='determinate')
 
 # Iniciar el bucle principal de la aplicación
 root.mainloop()
