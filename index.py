@@ -2,14 +2,12 @@ import os
 import pandas as pd
 from datetime import datetime
 import xmltodict
-from customtkinter import CTk, CTkFrame, CTkEntry, CTkLabel, CTkButton, CTkCheckBox, CTkFont, CTkImage
+from customtkinter import CTk, CTkFrame, CTkEntry, CTkLabel, CTkButton, CTkCheckBox, CTkFont, CTkImage, CTkProgressBar, StringVar
 import customtkinter as ctk
-from tkinter import PhotoImage, filedialog, messagebox, Frame, Label, Tk, Text
+from tkinter import PhotoImage, filedialog, messagebox, Frame, Label, Tk, Text, ttk, filedialog
 from PIL import Image, ImageTk
 import tkinter as tk
 import sys
-from tkinter import ttk
-from tkinter import filedialog
 import time
 
 # Función para leer archivos Excel con diferentes encabezados y agregar una columna con el nombre del archivo
@@ -41,8 +39,6 @@ def crear_carpetas():
     # Crear las carpetas si no existen
     for ruta in rutas:
         os.makedirs(ruta, exist_ok=True)
-
-    messagebox.showinfo("Carpetas creadas", "Las carpetas se han creado exitosamente en Disco local C")
 
 # Función para convertir archivos XML a DataFrame
 def xml_to_df(xml):
@@ -83,8 +79,20 @@ def convert_xml_to_xls(ruta_carpeta, destino_carpeta):
         except Exception as e:
             print(f"Error al convertir el archivo {file_path}: {e}")
 
+proceso_pe04_completado = False
+
+def actualizar_estados_botones():
+    global proceso_pe04_completado
+    if proceso_pe04_completado:
+        button2.configure(state='normal')
+        button3.configure(state='normal')
+    else:
+        button2.configure(state='disabled')
+        button3.configure(state='disabled')
+
 # Función para ordenar archivos por fecha, eliminar duplicados y filtrar registros
-def procesar_archivos_p04(carpeta_origen):
+def procesar_archivos_p04(carpeta_origen, progress_bar):
+    global proceso_pe04_completado
     carpeta_destino = "C:/file_merging/P04/Proceso_principal"
 
     # Convertir archivos XML a Excel antes de procesar
@@ -150,9 +158,14 @@ def procesar_archivos_p04(carpeta_origen):
         ]
         restantes.to_excel("C:/file_merging/P04/P04_Completo/P04_Completo.xlsx", index=False)
 
+        # Cambiar el estado de proceso_pe04_completado a True
+        proceso_pe04_completado = True
+        messagebox.showinfo("Proceso PE04", "Proceso PE04 completado correctamente.")
+
+        actualizar_estados_botones()
+
     else:
         print("No hay objetos para concatenar. La lista 'dfs' está vacía.")
-
 
 
 # Función para leer archivos Excel con diferentes encabezados y agregar una columna con el nombre del archivo
@@ -168,6 +181,13 @@ def read_excel_with_header_and_filename(file_path, filename):
 
 # Función para procesar y combinar archivos de aprendices
 def procesar_aprendices(entry_aprendices):
+    global proceso_pe04_completado
+    
+    # Verificar si el proceso PE04 ha sido completado
+    if not proceso_pe04_completado:
+        messagebox.showwarning("Proceso PE04", "Debe completar primero el proceso PE04.")
+        return
+
     # Obtener la ruta de la carpeta de aprendices seleccionada
     carpeta_aprendices = entry_aprendices.get()
 
@@ -226,13 +246,13 @@ def procesar_aprendices(entry_aprendices):
             archivo_certificados = os.path.join(ruta_salida_certificados, "Apre_Certificados.xlsx")
             df_certificados.to_excel(archivo_certificados, index=False)
             print(f"Archivos de aprendices certificados guardados en: {archivo_certificados}")
+            
+            messagebox.showinfo("Proceso Aprendices", "Proceso Aprendices completado correctamente.")
 
         else:
             print("No se encontraron archivos válidos para combinar en la carpeta de aprendices.")
     else:
         print("No se encontraron archivos .xlsx o .xls en la carpeta de aprendices.")
-
-
 
         
 
@@ -249,6 +269,13 @@ def read_excel_with_header_and_filename_juicios(file_path, filename):
 
 # Función para procesar y combinar archivos de juicios
 def procesar_juicios(entry_juicios):
+    global proceso_pe04_completado
+    
+    # Verificar si el proceso PE04 ha sido completado
+    if not proceso_pe04_completado:
+        messagebox.showwarning("Proceso PE04", "Debe completar primero el proceso PE04.")
+        return
+    
     # Obtener la ruta de la carpeta de juicios seleccionada
     carpeta_juicios = entry_juicios.get()
 
@@ -308,11 +335,15 @@ def procesar_juicios(entry_juicios):
             df_certificados.to_excel(archivo_certificados, index=False)
             print(f"Archivos de juicios certificados guardados en: {archivo_certificados}")
 
+            messagebox.showinfo("Proceso Juicios", "Proceso Juicios completado correctamente.")
+
         else:
             print("No se encontraron archivos válidos para combinar en la carpeta de juicios.")
     else:
         print("No se encontraron archivos .xlsx o .xls en la carpeta de juicios.")
 
+# Creación de carpetas al inicio del programa
+crear_carpetas()
         
 # Función para seleccionar carpeta 
 def seleccionar_carpeta(entry):
@@ -341,7 +372,7 @@ class CustomApp(ctk.CTkFrame):
         self.vista_actual = None
 
         # Frame principal para organizar las vistas
-        self.frame_principal = ctk.CTkFrame(self)
+        self.frame_principal = ctk.CTkFrame(self, fg_color='white')
         self.frame_principal.pack(fill=tk.BOTH, expand=True)
 
         # Vistas
@@ -368,18 +399,26 @@ class CustomApp(ctk.CTkFrame):
         self.mostrar_vista(self.vista1)
         
     def crear_vista(self, titulo, mensaje):
-        frame = ctk.CTkFrame(self.frame_principal)
+        frame = ctk.CTkFrame(self.frame_principal, fg_color='white')
 
         # Crear y configurar la etiqueta con el título
-        label = ctk.CTkLabel(frame, text=titulo, font=("Arial", 24))
+        label = ctk.CTkLabel(frame, text=titulo, font=("Arial", 24), text_color='black')
         label.pack(pady=20)
 
         # Crear el área de texto para mostrar el mensaje
-        text_frame = ctk.CTkFrame(frame)
+        text_frame = ctk.CTkFrame(frame, fg_color='white')
         text_frame.pack(pady=0, padx=20)
 
-        label_text = ctk.CTkLabel(text_frame, text=mensaje, wraplength=900, justify=tk.LEFT)
+        label_text = ctk.CTkLabel(text_frame, text=mensaje, wraplength=900, justify=tk.LEFT, text_color='black')
         label_text.pack(pady=0)
+
+        # Crear la barra de copyright
+        copyright_bar = ctk.CTkFrame(frame, bg_color='#1FAD00', fg_color='#1FAD00', height=30)
+        copyright_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        copyright_label = ctk.CTkLabel(copyright_bar, text="© 2024 File Merging - SENA", fg_color='#1FAD00', bg_color='#1FAD00')
+        copyright_label.pack(pady=5, padx=10)
+
         
         return frame
     
@@ -402,9 +441,9 @@ if __name__ == "__main__":
     root.configure(bg='#EFEFEF')
     root.resizable(False, False)
 
+
     # Iconos del Software
     logogeneral = PhotoImage(file='imagenes/filemergin.png')
-    logo = PhotoImage(file='imagenes/senalogo.png')
 
     # Redimensionar la imagen
     new_size = (150, 150)  # Nuevo tamaño (ancho, alto)
@@ -415,10 +454,16 @@ if __name__ == "__main__":
     # Crear el frame para el titulo
     frame_logo = ctk.CTkFrame(root, fg_color='#1FAD00', height=150,)
     frame_logo.grid(row=0, column=0, sticky='nwe', pady=(0,8), padx=(8,8))
-    
+
+
     # Asignar la imagen al label y expandirlo para ocupar toda la celda del grid
     label_logo = Label(frame_logo, image=logogeneral, bg='#1FAD00')
-    label_logo.pack(side=tk.LEFT, padx=10)
+    label_logo.grid(row=0, column=0, padx=(20,0), sticky='w')
+
+    # Agregar el texto "FILE MERGING"
+    title_font = ("Bangers", 48)
+    label_texto = Label(frame_logo, text="FILE MERGING - SENA", font=title_font, fg="white", bg='#1FAD00')
+    label_texto.grid(row=0, column=1, padx=(200,0), sticky='we')
 
     # Definir una fuente personalizada
     fuente_subtitulos = ctk.CTkFont(family="Helvetica", size=15, weight="bold")
@@ -429,7 +474,7 @@ if __name__ == "__main__":
     root.grid_columnconfigure(0, weight=1)
 
     # Crear el frame principal para la barra de botones a la izquierda
-    frame_botones = ctk.CTkFrame(root, fg_color='#EFEFEF', width=200)
+    frame_botones = ctk.CTkFrame(root, fg_color='white', width=200)
     frame_botones.grid(row=0, column=0, sticky='nsw', pady=(158,8), padx=(8,8))
     
     # Crear el frame principal para las vistas a la derecha
@@ -445,28 +490,26 @@ if __name__ == "__main__":
     
     button2 = ctk.CTkButton(frame_botones, text="Aprendices", fg_color='#1FAD00', command=lambda: app.cambiar_vista(app.vista2))
     button2.grid(row=1, column=0, padx=10, pady=10, sticky='ew')
-
+        
     button3 = ctk.CTkButton(frame_botones, text="Juicios", fg_color='#1FAD00', command=lambda: app.cambiar_vista(app.vista3))
     button3.grid(row=2, column=0, padx=10, pady=10, sticky='ew')
 
-    # Crear el botón para crear carpetas
-    boton_crear_carpetas = ctk.CTkButton(frame_botones, text="Crear Carpetas", fg_color='red', command=crear_carpetas)
-    boton_crear_carpetas.grid(row=3, column=0, padx=10, pady=10, sticky='ew')
+    if not proceso_pe04_completado:
+        button2.configure(state='disabled')
+        button3.configure(state='disabled')
 
     # Crear widgets  para la primera vista
     frame_widgets_vista1 = ctk.CTkFrame(app.vista1, fg_color='white')
     frame_widgets_vista1.pack(pady=20, padx=20)
-    frame_widgets_vista1_2 = ctk.CTkFrame(app.vista1, fg_color='white')
-    frame_widgets_vista1_2.pack(pady=20, padx=20)
 
     ctk.CTkLabel(frame_widgets_vista1, text="Selecciona la carpeta de PE04: ", text_color="#1FAD00", font=fuente_subtitulos).grid(row=0, column=0, padx=(20,40), pady=(20,20), sticky='E')
     entry_pe04 = ctk.CTkEntry(frame_widgets_vista1, width=350, font=("Arial", 12), border_color='#1B9800', fg_color="#1FAD00")
     entry_pe04.grid(row=0, column=1, padx=(0,40), pady=(20, 20), sticky='w')
     ctk.CTkButton(frame_widgets_vista1, text="Seleccionar", fg_color='#1FAD00', command=lambda: seleccionar_carpeta(entry_pe04)).grid(row=0, column=2, padx=(0,20), pady=(20,20), sticky='W')
     ctk.CTkButton(frame_widgets_vista1, text="Procesar PE04", fg_color='#1FAD00', command=lambda: procesar_archivos_p04(entry_pe04.get())).grid(row=1, column=2, pady=(20, 20), padx=(0, 20), sticky='e')
-
-    # Boton continuar procesos
-    ctk.CTkButton(frame_widgets_vista1_2, text="Continuar procesos", fg_color='#1FAD00', command=lambda: procesar_archivos_p04(entry_pe04.get())).pack(pady=(10, 10), padx=(10, 10))
+    # Crear un nuevo frame para la barra de progreso
+    frame_progreso = ctk.CTkFrame(app.vista1, fg_color='white')
+    frame_progreso.pack(pady=20, padx=20)
 
     # Crear widgets para la segunda vista
     frame_widgets_vista2 = ctk.CTkFrame(app.vista2, fg_color='white')
@@ -477,7 +520,6 @@ if __name__ == "__main__":
     entry_aprendices.grid(row=0, column=1, padx=(0,40), pady=(20, 20), sticky='w')
     ctk.CTkButton(frame_widgets_vista2, text="Seleccionar", fg_color='#1FAD00', command=lambda: seleccionar_carpeta(entry_aprendices)).grid(row=0, column=2, padx=(0,20), pady=(20,20), sticky='W')
     ctk.CTkButton(frame_widgets_vista2, text="Procesar Aprendices", fg_color='#1FAD00', command=lambda: procesar_aprendices(entry_aprendices)).grid(row=1, column=2, pady=(20, 20), padx=(0, 20), sticky='e')
-
 
     # Crear widgets para la tercera vista
     frame_widgets_vista3 = ctk.CTkFrame(app.vista3, fg_color='white')
@@ -495,6 +537,6 @@ if __name__ == "__main__":
     x = (screen_width - 1100) // 2
     y = (screen_height - 800) // 2
     root.geometry("+{}+{}".format(x, y))
-
+    
     app.pack(fill=tk.BOTH, expand=True)
     root.mainloop()
