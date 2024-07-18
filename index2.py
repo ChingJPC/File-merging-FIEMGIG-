@@ -7,8 +7,15 @@ import customtkinter as ctk
 from tkinter import PhotoImage, filedialog, messagebox, Frame, Label, Tk, Text, ttk, filedialog
 from PIL import Image, ImageTk
 import tkinter as tk
+import threading
 import sys
 import time
+
+def load_custom_font():
+    try:
+        ctk.load_font("Bangers", "fonts/Bangers.ttf")  # Ruta al archivo de la fuente
+    except Exception as e:
+        print(f"No se pudo cargar la fuente Bangers: {e}")
 
 # Función para leer archivos Excel con diferentes encabezados y agregar una columna con el nombre del archivo
 def read_excel_with_header_and_filename(file_path, header, filename):
@@ -91,7 +98,7 @@ def actualizar_estados_botones():
         button3.configure(state='disabled')
 
 # Función para ordenar archivos por fecha, eliminar duplicados y filtrar registros
-def procesar_archivos_p04(carpeta_origen, progress_bar):
+def procesar_archivos_p04(carpeta_origen):
     global proceso_pe04_completado
     carpeta_destino = "C:/file_merging/P04/Proceso_principal"
 
@@ -103,7 +110,6 @@ def procesar_archivos_p04(carpeta_origen, progress_bar):
     archivos_validos = []
     for archivo in archivos:
         nombre_archivo = os.path.basename(archivo)
-        # Ignorar el archivo 'archivofinal_PE04.xlsx'
         if nombre_archivo == 'archivofinal_PE04.xlsx':
             continue
 
@@ -111,9 +117,9 @@ def procesar_archivos_p04(carpeta_origen, progress_bar):
             fecha_str = nombre_archivo.split('_')[-1].split('.')[0]
             
             if fecha_str.isdigit():
-                if len(fecha_str) == 4:  # Si es un año como 2024
+                if len(fecha_str) == 4:
                     fecha = datetime.strptime(fecha_str, '%Y')
-                else:  # Si es un número de secuencia como 1, 2, 3
+                else:
                     fecha = int(fecha_str)
             else:
                 raise ValueError("Formato de fecha no reconocido")
@@ -125,40 +131,41 @@ def procesar_archivos_p04(carpeta_origen, progress_bar):
     archivos_ordenados = sorted(archivos_validos, key=lambda x: x[0], reverse=True)
 
     dfs = []
-    for _, archivo in archivos_ordenados:
+    total_archivos = len(archivos_ordenados)
+    for i, (_, archivo) in enumerate(archivos_ordenados):
         try:
             df = pd.read_excel(archivo)
             dfs.append(df)
         except Exception as e:
             print(f"Error al procesar el archivo {archivo}: {e}")
 
+        # Actualizar barra de progreso
+        progress_bar['value'] = (i + 1) / total_archivos * 100
+        root.update_idletasks()
+        time.sleep(0.1)  # Simulación de tiempo de procesamiento
+
     if dfs:
         combined_frame = pd.concat(dfs, ignore_index=True)
         combined_frame = combined_frame.drop_duplicates(subset=["IDENTIFICADOR_FICHA"])
 
-        # Filtrar y eliminar registros con fichas de ampliación de cobertura que contienen la letra "S"
         combined_frame = combined_frame[~combined_frame["AMPLIACION_COBERTURA"].str.contains("S", na=False)]
 
         ruta_destino = os.path.join(carpeta_destino, 'archivofinal_PE04.xlsx')
         combined_frame.to_excel(ruta_destino, index=False)
         print(f"Archivos combinados y guardados en: {ruta_destino}")
 
-        # Crear archivo con solo los cursos especiales y eventos
         cursos_especiales_eventos = combined_frame[combined_frame["NIVEL_FORMACION"].str.contains("CURSO ESPECIAL|EVENTO", na=False, case=False)]
         cursos_especiales_eventos.to_excel("C:/file_merging/P04/P04_c_e/P04_c_e.xlsx", index=False)
 
-        # Crear archivo con solo los aprendices de programas especiales que empiezan con INTEGRACION
         integracion = combined_frame[combined_frame["NOMBRE_PROGRAMA_ESPECIAL"].str.startswith("INTEGRACIÓN", na=False)]
         integracion.to_excel("C:/file_merging/P04/P04_Integracion/P04_Integracion.xlsx", index=False)
 
-        # Crear archivo con los aprendices restantes (sin cursos especiales y eventos, y sin programas que empiezan con INTEGRACION)
         restantes = combined_frame[
             ~combined_frame["NIVEL_FORMACION"].str.contains("CURSO ESPECIAL|EVENTO", na=False, case=False) &
             ~combined_frame["NOMBRE_PROGRAMA_ESPECIAL"].str.startswith("INTEGRACIÓN", na=False)
         ]
         restantes.to_excel("C:/file_merging/P04/P04_Completo/P04_Completo.xlsx", index=False)
 
-        # Cambiar el estado de proceso_pe04_completado a True
         proceso_pe04_completado = True
         messagebox.showinfo("Proceso PE04", "Proceso PE04 completado correctamente.")
 
@@ -166,6 +173,11 @@ def procesar_archivos_p04(carpeta_origen, progress_bar):
 
     else:
         print("No hay objetos para concatenar. La lista 'dfs' está vacía.")
+
+
+def iniciar_proceso(carpeta_origen):
+    progress_bar['value'] = 0
+    threading.Thread(target=procesar_archivos_p04, args=(carpeta_origen,)).start()
 
 
 # Función para leer archivos Excel con diferentes encabezados y agregar una columna con el nombre del archivo
@@ -180,7 +192,49 @@ def read_excel_with_header_and_filename(file_path, filename):
         return pd.DataFrame()
 
 # Función para procesar y combinar archivos de aprendices
-def procesar_aprendices(entry_aprendices):
+def procesar_aprendices_y_p04():
+    try:
+        # Cargar P04_Completo.xlsx
+        ruta_p04 = "C:/file_merging/P04/P04_Completo/P04_Completo.xlsx"
+        df_p04 = pd.read_excel(ruta_p04)
+
+        # Cargar DatosCombinadosAprendices.xlsx
+        ruta_aprendices = "C:/file_merging/Aprendices/Apre_Completos/DatosCombinadosAprendices.xlsx"
+        df_aprendices = pd.read_excel(ruta_aprendices)
+
+        # Extraer las fichas únicas de P04_Completo
+        fichas_p04 = df_p04['IDENTIFICADOR_FICHA'].unique()
+
+        # Inicializar listas para almacenar resultados
+        resultados = []
+
+        # Procesar cada ficha única
+        for ficha in fichas_p04:
+            # Filtrar aprendices por ficha
+            aprendices_ficha = df_aprendices[df_aprendices['Ficha'] == ficha]
+
+            # Calcular cantidad de aprendices
+            cantidad_aprendices = len(aprendices_ficha)
+
+            # Guardar resultado en la lista
+            resultados.append({'FichayID': ficha, 'Cantidad de aprendices': cantidad_aprendices})
+
+        # Crear DataFrame con los resultados
+        df_resultados = pd.DataFrame(resultados)
+
+        # Calcular porcentaje de aprendices por ficha
+        total_aprendices = df_resultados['Cantidad de aprendices'].sum()
+        df_resultados['Porcentaje'] = (df_resultados['Cantidad de aprendices'] / total_aprendices) * 100
+
+        # Guardar el archivo de resultados
+        ruta_resultados = "C:/file_merging/P04/P04_Completo/PruebaPorcentaje.xlsx"
+        df_resultados.to_excel(ruta_resultados, index=False)
+        print(f"Archivo de resultados guardado en: {ruta_resultados}")
+
+    except Exception as e:
+        print(f"Error en el proceso de combinación y cálculo de porcentaje: {e}")
+
+def procesar_aprendices(carpeta_aprendices):
     global proceso_pe04_completado
     
     # Verificar si el proceso PE04 ha sido completado
@@ -188,71 +242,61 @@ def procesar_aprendices(entry_aprendices):
         messagebox.showwarning("Proceso PE04", "Debe completar primero el proceso PE04.")
         return
 
-    # Obtener la ruta de la carpeta de aprendices seleccionada
-    carpeta_aprendices = entry_aprendices.get()
-
     if not carpeta_aprendices:
         print("Por favor selecciona una carpeta de aprendices.")
         return
 
-    # Obtener la lista de archivos Excel (.xlsx y .xls) en la carpeta de aprendices
-    archivos_aprendices = [
-        os.path.join(carpeta_aprendices, archivo) for archivo in os.listdir(carpeta_aprendices)
-        if archivo.endswith('.xlsx') or archivo.endswith('.xls')
-    ]
+    try:
+        # Leer P04_Completo.xlsx para obtener las fichas únicas
+        ruta_p04 = "C:/file_merging/P04/P04_Completo/P04_Completo.xlsx"
+        df_p04 = pd.read_excel(ruta_p04)
+        fichas_p04 = df_p04['IDENTIFICADOR_FICHA'].unique()
 
-    if archivos_aprendices:
-        dfs = []
-        for archivo in archivos_aprendices:
-            try:
-                if archivo.endswith('.xlsx') or archivo.endswith('.xls'):
-                    # Llama a la función para leer el archivo Excel con encabezados en la fila 4 (A5 en Excel)
-                    df = read_excel_with_header_and_filename(archivo, filename=os.path.basename(archivo))
-                    dfs.append(df)
-                else:
-                    print(f"Archivo no soportado: {archivo}. Solo se admiten archivos .xlsx y .xls.")
-            except Exception as e:
-                print(f"Error al procesar el archivo {archivo}: {e}")
+        # Leer DatosCombinadosAprendices.xlsx para contar aprendices por ficha
+        ruta_aprendices = "C:/file_merging/Aprendices/Apre_Completos/DatosCombinadosAprendices.xlsx"
+        df_aprendices = pd.read_excel(ruta_aprendices)
 
-        if dfs:
-            # Combinar todos los DataFrames en uno solo
-            combined_frame = pd.concat(dfs, ignore_index=True)
+        # Inicializar lista para almacenar resultados de porcentaje
+        resultados_porcentaje = []
 
-            # Guardar el archivo combinado en la carpeta de aprendices/Apre_Completos
-            ruta_salida_completos = "C:/file_merging/Aprendices/Apre_Completos"
-            if not os.path.exists(ruta_salida_completos):
-                os.makedirs(ruta_salida_completos)
-            
-            archivo_combinado = os.path.join(ruta_salida_completos, "DatosCombinadosAprendices.xlsx")
-            combined_frame.to_excel(archivo_combinado, index=False)
-            print(f"Archivos de aprendices combinados guardados en: {archivo_combinado}")
+        # Procesar cada ficha única de P04_Completo.xlsx
+        for ficha in fichas_p04:
+            # Contar aprendices por ficha
+            cantidad_aprendices = len(df_aprendices[df_aprendices['IDENTIFICADOR_FICHA'] == ficha])
 
-            # Filtrar y guardar por estado CANCELADO o RETIRO VOLUNTARIO
-            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO'])]
-            ruta_salida_cancelados = "C:/file_merging/Aprendices/Apre_a_c"
-            if not os.path.exists(ruta_salida_cancelados):
-                os.makedirs(ruta_salida_cancelados)
-            
-            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Apre_Cancelados.xlsx")
-            df_cancelados.to_excel(archivo_cancelados, index=False)
-            print(f"Archivos de aprendices cancelados guardados en: {archivo_cancelados}")
+            # Calcular porcentaje
+            total_aprendices = len(df_aprendices)  # Total de aprendices en todos los registros
+            porcentaje = (cantidad_aprendices / total_aprendices) * 100
 
-            # Filtrar y guardar por estado CERTIFICADO o TRASLADADO
-            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO', 'TRASLADADO'])]
-            ruta_salida_certificados = "C:/file_merging/Aprendices/Apre_a_c"
-            if not os.path.exists(ruta_salida_certificados):
-                os.makedirs(ruta_salida_certificados)
-            
-            archivo_certificados = os.path.join(ruta_salida_certificados, "Apre_Certificados.xlsx")
-            df_certificados.to_excel(archivo_certificados, index=False)
-            print(f"Archivos de aprendices certificados guardados en: {archivo_certificados}")
-            
-            messagebox.showinfo("Proceso Aprendices", "Proceso Aprendices completado correctamente.")
+            # Agregar resultado a la lista
+            resultados_porcentaje.append({'Ficha': ficha, 'Cantidad de aprendices': cantidad_aprendices, 'Porcentaje': porcentaje})
 
-        else:
-            print("No se encontraron archivos válidos para combinar en la carpeta de aprendices.")
-    else:
-        print("No se encontraron archivos .xlsx o .xls en la carpeta de aprendices.")
+        # Crear DataFrame con los resultados de porcentaje
+        df_resultados_porcentaje = pd.DataFrame(resultados_porcentaje)
+
+        # Guardar el archivo de resultados de porcentaje
+        ruta_resultados_porcentaje = "C:/file_merging/P04/P04_Completo/PruebaPorcentaje.xlsx"
+        df_resultados_porcentaje.to_excel(ruta_resultados_porcentaje, index=False)
+        print(f"Archivo de resultados de porcentaje guardado en: {ruta_resultados_porcentaje}")
+
+        # Mostrar mensaje de éxito
+        messagebox.showinfo("Proceso Aprendices y Porcentaje", "Proceso de cálculo de porcentaje completado correctamente.")
+
+    except Exception as e:
+        print(f"Error en el proceso de combinación y cálculo de porcentaje: {e}")
+
+    # Llamar a la función para procesar aprendices y PE04 combinados
+    procesar_aprendices_y_p04()
+
+def iniciar_proceso_aprendices(carpeta_aprendices):
+    progress_bar_aprendices['value'] = 0
+    threading.Thread(target=procesar_aprendices, args=(carpeta_aprendices,)).start()
+    actualizar_barra_progreso_aprendices()
+
+def actualizar_barra_progreso_aprendices():
+    if threading.active_count() > 1:  # Si el proceso aún se está ejecutando
+        progress_bar_aprendices.update_idletasks()
+        root.after(100, actualizar_barra_progreso_aprendices)
 
         
 
@@ -268,7 +312,7 @@ def read_excel_with_header_and_filename_juicios(file_path, filename):
         return pd.DataFrame()
 
 # Función para procesar y combinar archivos de juicios
-def procesar_juicios(entry_juicios):
+def procesar_juicios(carpeta_juicios):
     global proceso_pe04_completado
     
     # Verificar si el proceso PE04 ha sido completado
@@ -276,9 +320,6 @@ def procesar_juicios(entry_juicios):
         messagebox.showwarning("Proceso PE04", "Debe completar primero el proceso PE04.")
         return
     
-    # Obtener la ruta de la carpeta de juicios seleccionada
-    carpeta_juicios = entry_juicios.get()
-
     if not carpeta_juicios:
         print("Por favor selecciona una carpeta de juicios.")
         return
@@ -291,16 +332,21 @@ def procesar_juicios(entry_juicios):
 
     if archivos_juicios:
         dfs = []
-        for archivo in archivos_juicios:
+        total_archivos = len(archivos_juicios)
+        for i, archivo in enumerate(archivos_juicios):
             try:
                 if archivo.endswith('.xlsx') or archivo.endswith('.xls'):
-                    # Llama a la función para leer el archivo Excel con encabezados en la fila 4 (A5 en Excel)
+                    # Llama a la función para leer el archivo Excel con encabezados en la fila 11 (A12 en Excel)
                     df = read_excel_with_header_and_filename_juicios(archivo, filename=os.path.basename(archivo))
                     dfs.append(df)
                 else:
                     print(f"Archivo no soportado: {archivo}. Solo se admiten archivos .xlsx y .xls.")
             except Exception as e:
                 print(f"Error al procesar el archivo {archivo}: {e}")
+
+            # Actualizar barra de progreso
+            progress_bar_juicios['value'] = (i + 1) / total_archivos * 100
+            root.update_idletasks()
 
         if dfs:
             # Combinar todos los DataFrames en uno solo
@@ -341,6 +387,17 @@ def procesar_juicios(entry_juicios):
             print("No se encontraron archivos válidos para combinar en la carpeta de juicios.")
     else:
         print("No se encontraron archivos .xlsx o .xls en la carpeta de juicios.")
+
+def iniciar_proceso_juicios(carpeta_juicios):
+    progress_bar_juicios['value'] = 0
+    threading.Thread(target=procesar_juicios, args=(carpeta_juicios,)).start()
+    actualizar_barra_progreso_juicios()
+
+def actualizar_barra_progreso_juicios():
+    if threading.active_count() > 1:  # Si el proceso aún se está ejecutando
+        progress_bar_juicios.update_idletasks()
+        root.after(600, actualizar_barra_progreso_juicios)
+
 
 # Creación de carpetas al inicio del programa
 crear_carpetas()
@@ -506,11 +563,8 @@ if __name__ == "__main__":
     entry_pe04 = ctk.CTkEntry(frame_widgets_vista1, width=350, font=("Arial", 12), border_color='#1B9800', fg_color="#1FAD00")
     entry_pe04.grid(row=0, column=1, padx=(0,40), pady=(20, 20), sticky='w')
     ctk.CTkButton(frame_widgets_vista1, text="Seleccionar", fg_color='#1FAD00', command=lambda: seleccionar_carpeta(entry_pe04)).grid(row=0, column=2, padx=(0,20), pady=(20,20), sticky='W')
-    ctk.CTkButton(frame_widgets_vista1, text="Procesar PE04", fg_color='#1FAD00', command=lambda: procesar_archivos_p04(entry_pe04.get())).grid(row=1, column=2, pady=(20, 20), padx=(0, 20), sticky='e')
-    # Crear un nuevo frame para la barra de progreso
-    frame_progreso = ctk.CTkFrame(app.vista1, fg_color='white')
-    frame_progreso.pack(pady=20, padx=20)
-
+    ctk.CTkButton(frame_widgets_vista1, text="Procesar PE04", fg_color='#1FAD00', command=lambda: iniciar_proceso(entry_pe04.get())).grid(row=1, column=2, pady=(20, 20), padx=(0, 20), sticky='e')
+    
     # Crear widgets para la segunda vista
     frame_widgets_vista2 = ctk.CTkFrame(app.vista2, fg_color='white')
     frame_widgets_vista2.pack(pady=20, padx=20)
@@ -519,7 +573,7 @@ if __name__ == "__main__":
     entry_aprendices = ctk.CTkEntry(frame_widgets_vista2, width=350, font=("Arial", 12), border_color='#1B9800', fg_color="#1FAD00")
     entry_aprendices.grid(row=0, column=1, padx=(0,40), pady=(20, 20), sticky='w')
     ctk.CTkButton(frame_widgets_vista2, text="Seleccionar", fg_color='#1FAD00', command=lambda: seleccionar_carpeta(entry_aprendices)).grid(row=0, column=2, padx=(0,20), pady=(20,20), sticky='W')
-    ctk.CTkButton(frame_widgets_vista2, text="Procesar Aprendices", fg_color='#1FAD00', command=lambda: procesar_aprendices(entry_aprendices)).grid(row=1, column=2, pady=(20, 20), padx=(0, 20), sticky='e')
+    ctk.CTkButton(frame_widgets_vista2, text="Procesar Aprendices", fg_color='#1FAD00', command=lambda: iniciar_proceso_aprendices(entry_aprendices.get())).grid(row=1, column=2, pady=(20, 20), padx=(0, 20), sticky='e')
 
     # Crear widgets para la tercera vista
     frame_widgets_vista3 = ctk.CTkFrame(app.vista3, fg_color='white')
@@ -529,7 +583,22 @@ if __name__ == "__main__":
     entry_juicios = ctk.CTkEntry(frame_widgets_vista3, width=350, font=("Arial", 12), border_color='#1B9800', fg_color="#1FAD00")
     entry_juicios.grid(row=0, column=1, padx=(0,40), pady=(20, 20), sticky='w')
     ctk.CTkButton(frame_widgets_vista3, text="Seleccionar", fg_color='#1FAD00', command=lambda: seleccionar_carpeta(entry_juicios)).grid(row=0, column=2, padx=(0,20), pady=(20,20), sticky='W')
-    ctk.CTkButton(frame_widgets_vista3, text="Procesar Juicios", fg_color='#1FAD00', command=lambda: procesar_juicios(entry_juicios)).grid(row=1, column=2, pady=(20, 20), padx=(0, 20), sticky='e')
+    ctk.CTkButton(frame_widgets_vista3, text="Procesar Juicios", fg_color='#1FAD00', command=lambda: iniciar_proceso_juicios(entry_juicios.get())).grid(row=1, column=2, pady=(20, 20), padx=(0, 20), sticky='e')
+    
+    label_progreso = ctk.CTkLabel(frame_widgets_vista1, text="Barra de progreso", text_color='black')
+    label_progreso.grid(row=1, column=0, columnspan=3, pady=(25, 5), sticky='s')
+    progress_bar = ttk.Progressbar(frame_widgets_vista1, orient="horizontal", length=300, mode="determinate")
+    progress_bar.grid(row=2, column=0, columnspan=3, pady=(5, 20))
+
+    label_progreso_aprendices = ctk.CTkLabel(frame_widgets_vista2, text="Barra de progreso", text_color='black')
+    label_progreso_aprendices.grid(row=1, column=0, columnspan=3, pady=(25, 5), sticky='s')
+    progress_bar_aprendices = ttk.Progressbar(frame_widgets_vista2, orient="horizontal", length=300, mode="determinate")
+    progress_bar_aprendices.grid(row=2, column=0, columnspan=3, pady=(5, 20))
+
+    label_progreso_juicios = ctk.CTkLabel(frame_widgets_vista3, text="Barra de progreso", text_color='black')
+    label_progreso_juicios.grid(row=1, column=0, columnspan=3, pady=(25, 5), sticky='s')
+    progress_bar_juicios = ttk.Progressbar(frame_widgets_vista3, orient="horizontal", length=300, mode="determinate")
+    progress_bar_juicios.grid(row=2, column=0, columnspan=3, pady=(5, 20))
 
     # Centrar la ventana en la pantalla
     screen_width = root.winfo_screenwidth()
@@ -537,6 +606,6 @@ if __name__ == "__main__":
     x = (screen_width - 1100) // 2
     y = (screen_height - 800) // 2
     root.geometry("+{}+{}".format(x, y))
-
+    
     app.pack(fill=tk.BOTH, expand=True)
     root.mainloop()
