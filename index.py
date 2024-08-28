@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import xmltodict
 from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 from customtkinter import CTk, CTkFrame, CTkEntry, CTkLabel, CTkButton, CTkCheckBox, CTkFont, CTkImage, CTkProgressBar, StringVar
 import customtkinter as ctk
 from tkinter import PhotoImage, filedialog, messagebox, Frame, Label, Tk, Text, ttk, filedialog
@@ -34,13 +35,13 @@ pd.set_option('display.max_columns', None)
 def crear_carpetas():
     # Rutas de las carpetas que se van a crear
     rutas = [
-        "C:/file_merging/P04/Proceso_principal",
-        "C:/file_merging/P04/P04_c_e",
-        "C:/file_merging/P04/P04_Integracion",
-        "C:/file_merging/P04/P04_Completo",
-        "C:/file_merging/Aprendices/Apre_a_c",
+        "C:/file_merging/P04/P04_TODOS_DATOS",
+        "C:/file_merging/P04/P04_CURSOS_EVENTOS",
+        "C:/file_merging/P04/P04_INTEGRACION",
+        "C:/file_merging/P04/P04_FINAL",
+        "C:/file_merging/Aprendices/Apre_C_R",
         "C:/file_merging/Aprendices/Apre_Completos",
-        "C:/file_merging/Juicios/Juic_a_c",
+        "C:/file_merging/Juicios/Juic_C_R",
         "C:/file_merging/Juicios/Juic_Completos",
         "C:/file_merging/Informe"
     ]
@@ -103,7 +104,7 @@ def actualizar_estados_botones():
 # Función para ordenar archivos por fecha, eliminar duplicados y filtrar registros
 def procesar_archivos_p04(carpeta_origen):
     global proceso_pe04_completado
-    carpeta_destino = "C:/file_merging/P04/Proceso_principal"
+    carpeta_destino = "C:/file_merging/P04/P04_TODOS_DATOS"
 
     # Convertir archivos XML a Excel antes de procesar
     convert_xml_to_xls(carpeta_origen, carpeta_destino)
@@ -158,16 +159,16 @@ def procesar_archivos_p04(carpeta_origen):
         print(f"Archivos combinados y guardados en: {ruta_destino}")
 
         cursos_especiales_eventos = combined_frame[combined_frame["NIVEL_FORMACION"].str.contains("CURSO ESPECIAL|EVENTO", na=False, case=False)]
-        cursos_especiales_eventos.to_excel("C:/file_merging/P04/P04_c_e/P04_c_e.xlsx", index=False)
+        cursos_especiales_eventos.to_excel("C:/file_merging/P04/P04_CURSOS_EVENTOS/P04_cursos_eventos.xlsx", index=False)
 
         integracion = combined_frame[combined_frame["NOMBRE_PROGRAMA_ESPECIAL"].str.startswith("INTEGRACIÓN", na=False)]
-        integracion.to_excel("C:/file_merging/P04/P04_Integracion/P04_Integracion.xlsx", index=False)
+        integracion.to_excel("C:/file_merging/P04/P04_INTEGRACION/P04_Integracion.xlsx", index=False)
 
         restantes = combined_frame[
             ~combined_frame["NIVEL_FORMACION"].str.contains("CURSO ESPECIAL|EVENTO", na=False, case=False) &
             ~combined_frame["NOMBRE_PROGRAMA_ESPECIAL"].str.startswith("INTEGRACIÓN", na=False)
         ]
-        restantes.to_excel("C:/file_merging/P04/P04_Completo/P04_Completo.xlsx", index=False)
+        restantes.to_excel("C:/file_merging/P04/P04_FINAL/P04_final.xlsx", index=False)
 
         proceso_pe04_completado = True
         messagebox.showinfo("Proceso PE04", "Proceso PE04 completado correctamente.")
@@ -244,18 +245,18 @@ def procesar_aprendices(carpeta_aprendices):
             print(f"Archivos de aprendices combinados guardados en: {archivo_combinado}")
 
             # Filtrar y guardar por estado CANCELADO o RETIRO VOLUNTARIO
-            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO'])]
-            ruta_salida_cancelados = "C:/file_merging/Aprendices/Apre_a_c"
+            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO','TRASLADADO' ])]
+            ruta_salida_cancelados = "C:/file_merging/Aprendices/Apre_C_R"
             if not os.path.exists(ruta_salida_cancelados):
                 os.makedirs(ruta_salida_cancelados)
             
-            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Apre_Cancelados.xlsx")
+            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Apre_Retirados.xlsx")
             df_cancelados.to_excel(archivo_cancelados, index=False)
             print(f"Archivos de aprendices cancelados guardados en: {archivo_cancelados}")
 
             # Filtrar y guardar por estado CERTIFICADO o TRASLADADO
-            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO', 'TRASLADADO'])]
-            ruta_salida_certificados = "C:/file_merging/Aprendices/Apre_a_c"
+            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO'])]
+            ruta_salida_certificados = "C:/file_merging/Aprendices/Apre_C_R"
             if not os.path.exists(ruta_salida_certificados):
                 os.makedirs(ruta_salida_certificados)
             
@@ -349,19 +350,19 @@ def procesar_juicios(carpeta_juicios):
             combined_frame.to_excel(archivo_combinado, index=False)
             print(f"Archivos de juicios combinados guardados en: {archivo_combinado}")
 
-            # Filtrar y guardar por estado CANCELADO o RETIRO VOLUNTARIO
-            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO'])]
-            ruta_salida_cancelados = "C:/file_merging/Juicios/Juic_a_c"
+            # Filtrar y guardar por estado CANCELADO, RETIRO VOLUNTARIO Y TRASLADADO
+            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO', 'TRASLADADO'])]
+            ruta_salida_cancelados = "C:/file_merging/Juicios/Juic_C_R"
             if not os.path.exists(ruta_salida_cancelados):
                 os.makedirs(ruta_salida_cancelados)
             
-            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Juic_Cancelados.xlsx")
+            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Juic_Retirados.xlsx")
             df_cancelados.to_excel(archivo_cancelados, index=False)
             print(f"Archivos de juicios cancelados guardados en: {archivo_cancelados}")
 
             # Filtrar y guardar por estado CERTIFICADO o TRASLADADO
-            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO', 'TRASLADADO'])]
-            ruta_salida_certificados = "C:/file_merging/Juicios/Juic_a_c"
+            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO'])]
+            ruta_salida_certificados = "C:/file_merging/Juicios/Juic_C_R"
             if not os.path.exists(ruta_salida_certificados):
                 os.makedirs(ruta_salida_certificados)
             
@@ -389,7 +390,7 @@ def actualizar_barra_progreso_juicios():
         progress_bar_juicios.update_idletasks()
         root.after(600, actualizar_barra_progreso_juicios)
 
-
+#Crear Informe
 def generar_informe():
     ruta_guardado = "C:/file_merging/Informe/informe_generado.xlsx"
     os.makedirs(os.path.dirname(ruta_guardado), exist_ok=True)
@@ -397,93 +398,143 @@ def generar_informe():
     def proceso():
         try:
             # Cargar datos de los archivos
-            juic_certificados = pd.read_excel("C:/file_merging/Juicios/Juic_a_c/Juic_Certificados.xlsx")
-            p04_completo = pd.read_excel("C:/file_merging/P04/P04_Completo/P04_Completo.xlsx")
+            juic_certificados = pd.read_excel("C:/file_merging/Juicios/Juic_C_R/Juic_Certificados.xlsx")
+            p04_completo = pd.read_excel("C:/file_merging/P04/P04_FINAL/P04_final.xlsx")
             
             # Crear un nuevo archivo Excel con openpyxl
             workbook = Workbook()
+            
+            # Crear la hoja "Informe" y agregar los encabezados en negrita
             hoja_informe = workbook.active
             hoja_informe.title = "Informe"
 
-            # Encabezados para la hoja "Informe"
-            encabezados = [
+            encabezados_informe = [
                 "Ficha&ID", "Técnica", "Transversal", "Ficha", 
                 "Lider", "Programa", "Titulo", "Identificación", 
                 "Nombre", "Apellidos", "Tipo de Documento"
             ]
-            hoja_informe.append(encabezados)
+            
+            for col, encabezado in enumerate(encabezados_informe, start=1):
+                cell = hoja_informe.cell(row=1, column=col, value=encabezado)
+                cell.font = Font(bold=True)
 
             # Crear la hoja "Juic_Certificados" y copiar los datos
             hoja_juic_certificados = workbook.create_sheet("Juic_Certificados")
             hoja_juic_certificados.append(juic_certificados.columns.tolist())  # Encabezados
+            for col in hoja_juic_certificados.iter_cols(min_row=1, max_row=1, min_col=1, max_col=len(juic_certificados.columns)):
+                for cell in col:
+                    cell.font = Font(bold=True)
             for _, row in juic_certificados.iterrows():
                 hoja_juic_certificados.append(row.tolist())
 
             # Crear la hoja "P04_Completo" y copiar los datos
             hoja_p04_completo = workbook.create_sheet("P04_Completo")
             hoja_p04_completo.append(p04_completo.columns.tolist())  # Encabezados
+            for col in hoja_p04_completo.iter_cols(min_row=1, max_row=1, min_col=1, max_col=len(p04_completo.columns)):
+                for cell in col:
+                    cell.font = Font(bold=True)
             for _, row in p04_completo.iterrows():
                 hoja_p04_completo.append(row.tolist())
 
-            progress_bar['value'] = 33
-            progress_bar.update_idletasks()
+            # Crear la hoja "Ficha&Ambiente" y agregar los encabezados en negrita
+            hoja_ficha_ambiente = workbook.create_sheet("Ficha&Ambiente")
 
-            # Procesar datos y llenar la hoja "Informe"
-            fila_informe = 2
-            numero_documentos_procesados = set()  # Para evitar duplicados por "Número de Documento"
+            encabezados_ficha_ambiente = [
+                "FICHA APRENDICES", "FICHA", "CODIGO", "VR*SENA", "OFERTA", "TITULO", 
+                "NOMBRE DEL PROGRAMA", "LIDER", "MATRICULAS", "ACTIVOS", "MESES LECTIVA", 
+                "INICIO LECTIVA", "FINAL LECTIVA", "PORCENTAJE DE AVANCE", 
+                "AVANCE JUICIOS TECNICA", "FALTA POR EVALUAR", 
+                "AVANCE JUICIOS TRANSVERSALES", "FALTA POR EVALUAR", 
+                "EVALUACION TOTAL", "MESES PRODUCTIVA", "INICIO PRODUCTIVA", 
+                "FINAL PRODUCTIVA", "COORDINADOR", "ESTADO CURSO", 
+                "MODALIDAD FORMACION", "CODIGO NIVEL DE FORMACION", "RESPUESTA", 
+                "PROGRAMA ESPECIAL", "DESERCION", "ACTIVOS REAL", "PROYECTO"
+            ]
+            hoja_ficha_ambiente.append(encabezados_ficha_ambiente)
 
-            for _, row in juic_certificados.iterrows():
-                identificador = row['Identificador']
-                tipo_documento = row['Tipo de Documento']
-                numero_documento = row['Número de Documento']
-                nombre = row['Nombre']
-                apellidos = row['Apellidos']
-                
-                if numero_documento in numero_documentos_procesados:
-                    continue
-                numero_documentos_procesados.add(numero_documento)
+            # Establecer el color verde claro en los encabezados relevantes
+            verde_claro = PatternFill(start_color="CCFFCC", end_color="CCFFCC", fill_type="solid")
+            columnas_verde = [2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 24, 25, 26, 28]
+            for col in columnas_verde:
+                hoja_ficha_ambiente.cell(row=1, column=col).fill = verde_claro
+                hoja_ficha_ambiente.cell(row=1, column=col).font = Font(bold=True)
 
-                # Agregar datos a la hoja "Informe"
-                hoja_informe.append([
-                    identificador,  # Ficha&ID
-                    "",  # Técnica (vacío por ahora)
-                    "",  # Transversal (vacío por ahora)
-                    "",  # Ficha (vacío por ahora)
-                    "",  # Lider (vacío por ahora)
-                    "",  # Programa (vacío por ahora)
-                    "",  # Titulo (vacío por ahora)
-                    numero_documento,  # Identificación
-                    nombre,  # Nombre
-                    apellidos,  # Apellidos
-                    tipo_documento  # Tipo de Documento
+            # Establecer el color rojo y negrita para los encabezados
+            rojo_fuerte = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+            columnas_rojas = [11, 13, 14, 21, 22, 23]  # Columnas a aplicar el formato (Final Lectiva, Porcentaje de Avance, Meses Productiva, Inicio Productiva, Final Productiva)
+            for col in columnas_rojas:
+                hoja_ficha_ambiente.cell(row=1, column=col).fill = rojo_fuerte
+                hoja_ficha_ambiente.cell(row=1, column=col).font = Font(bold=True)
+
+            # Transferir datos desde P04_Completo a Ficha&Ambiente
+            for index, row in p04_completo.iterrows():
+                hoja_ficha_ambiente.append([
+                    "",  # FICHA APRENDICES
+                    row['IDENTIFICADOR_FICHA'],  # FICHA
+                    row['CODIGO_PROGRAMA'],  # CODIGO
+                    row['VERSION_PROGRAMA'],  # VR*SENA
+                    "",  # OFERTA (vacío)
+                    row['NIVEL_FORMACION'],  # Titulo
+                    row['NOMBRE_PROGRAMA_FORMACION'],  # NOMBRE DEL PROGRAMA
+                    row['NOMBRE_RESPONSABLE'],  # LIDER
+                    row['TOTAL_APRENDICES'],  # MATRICULAS
+                    row['TOTAL_APRENDICES_ACTIVOS'],  # ACTIVOS
+                    "",  # MESES LECTIVA (Vacio)
+                    row['FECHA_INICIO_FICHA'],  # INICIO LECTIVA
+                    "",  # FINAL LECTIVA (vacío)
+                    "",  # PORCENTAJE DE AVANCE (vacío)
+                    "",  # AVANCE JUICIOS TECNICA (vacío)
+                    "",  # FALTA POR EVALUAR (vacío)
+                    "",  # AVANCE JUICIOS TRANSVERSALES (vacío)
+                    "",  # FALTA POR EVALUAR (vacío)
+                    "",  # EVALUACION TOTAL (vacío)
+                    "",  # MESES PRODUCTIVA (vacío)
+                    "",  # INICIO PRODUCTIVA (vacío)
+                    "",  # FINAL PRODUCTIVA (vacío)
+                    "",  # COORDINADOR (vacío)
+                    row['ESTADO_CURSO'],  # ESTADO CURSO
+                    row['MODALIDAD_FORMACION'],  # MODALIDAD FORMACION
+                    row['CODIGO_NIVEL_FORMACION'],  # CODIGO NIVEL DE FORMACION
+                    "",  # RESPUESTA (vacío)
+                    row['NOMBRE_PROGRAMA_ESPECIAL'],  # PROGRAMA ESPECIAL
+                    "",  # DESERCION (vacío)
+                    "",  # ACTIVOS REAL (vacío)
+                    ""  # PROYECTO (vacío)
                 ])
 
-                # Buscar en P04_Completo
-                p04_data = p04_completo[p04_completo['IDENTIFICADOR_FICHA'] == identificador]
-                if not p04_data.empty:
-                    p04_row = p04_data.iloc[0]
-                    hoja_informe[f"D{fila_informe}"] = identificador
-                    hoja_informe[f"E{fila_informe}"] = p04_row['NOMBRE_RESPONSABLE']
-                    hoja_informe[f"G{fila_informe}"] = p04_row['NIVEL_FORMACION']
-                    hoja_informe[f"F{fila_informe}"] = p04_row['NOMBRE_PROGRAMA_FORMACION']
+            for row_num in range(2, hoja_ficha_ambiente.max_row + 1):
 
-                    # Contar coincidencias en Juic_Certificados
-                    coincidencias = juic_certificados[
-                        (juic_certificados['Identificador'] == identificador) &
-                        (juic_certificados['Funcionario que registro el juicio evaluativo'] == p04_row['NOMBRE_RESPONSABLE'])
-                    ]
-                    total_coincidencias = len(coincidencias)
-                    aprobados = len(coincidencias[coincidencias['Juicio de Evaluación'] == 'Aprobado'])
-                    porcentaje = (aprobados / total_coincidencias) * 100 if total_coincidencias > 0 else 0
+                # Añadir la fórmula en la columna "FINAL LECTIVA"
+                u_cell = hoja_ficha_ambiente.cell(row=row_num, column=21).coordinate
+                hoja_ficha_ambiente.cell(row=row_num, column=13, value=f"={u_cell}-1")
 
-                    hoja_informe[f"B{fila_informe}"] = f"{porcentaje:.2f}%"
-                    
-                fila_informe += 1
+                # Añadir la fórmula en la columna "MESES LECTIVA"
+                u_cell = hoja_ficha_ambiente.cell(row=row_num, column=12).coordinate
+                l_cell = hoja_ficha_ambiente.cell(row=row_num, column=13).coordinate
+                hoja_ficha_ambiente.cell(row=row_num, column=11, value=f"=ROUND(DAYS({u_cell},{l_cell})/30,0)")
+
+                # Añadir la fórmula en la columna "MESES PRODUCTIVA"
+                z_cell = hoja_ficha_ambiente.cell(row=row_num, column=26).coordinate
+                hoja_ficha_ambiente.cell(row=row_num, column=21, value=f"=IF({z_cell}=6,6,IF({z_cell}=2,6,IF({z_cell}=10,3,0)))")
+
+                # Añadir la fórmula en la columna "INICIO PRODUCTIVA"
+                v_cell = hoja_ficha_ambiente.cell(row=row_num, column=22).coordinate
+                t_cell = hoja_ficha_ambiente.cell(row=row_num, column=21).coordinate
+                hoja_ficha_ambiente.cell(row=row_num, column=22, value=f"=EDATE({v_cell},-{t_cell})")
+
+                # Añadir la fórmula en la columna "PORCENTAJE DE AVANCE"
+                l_cell = hoja_ficha_ambiente.cell(row=row_num, column=12).coordinate
+                m_cell = hoja_ficha_ambiente.cell(row=row_num, column=13).coordinate
+                hoja_ficha_ambiente.cell(row=row_num, column=14, value=f"=IF(DAYS360({l_cell},TODAY())/DAYS360({l_cell},{m_cell})>1,1,DAYS360({l_cell},TODAY())/DAYS360({l_cell},{m_cell}))")
+
+                # Añadir la fórmula en la columna "FINAL PRODUCTIVA"
+                hoja_ficha_ambiente.cell(row=row_num, column=23, value=f"=VLOOKUP($E{row_num},'P04_Completo'!$E:$AZ,V$1,FALSE)")
+
+            progress_bar['value'] = 100
+            progress_bar.update_idletasks()
 
             # Guardar el archivo
             workbook.save(ruta_guardado)
-            progress_bar['value'] = 100
-            progress_bar.update_idletasks()
 
             # Mostrar mensaje de éxito
             messagebox.showinfo("Generación de Informe", "Generación de Informe completado correctamente.")
