@@ -2,6 +2,9 @@ import os
 import pandas as pd
 from datetime import datetime
 import xmltodict
+from openpyxl import Workbook,load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Font, PatternFill
 from customtkinter import CTk, CTkFrame, CTkEntry, CTkLabel, CTkButton, CTkCheckBox, CTkFont, CTkImage, CTkProgressBar, StringVar
 import customtkinter as ctk
 from tkinter import PhotoImage, filedialog, messagebox, Frame, Label, Tk, Text, ttk, filedialog
@@ -33,14 +36,15 @@ pd.set_option('display.max_columns', None)
 def crear_carpetas():
     # Rutas de las carpetas que se van a crear
     rutas = [
-        "C:/file_merging/P04/Proceso_principal",
-        "C:/file_merging/P04/P04_c_e",
-        "C:/file_merging/P04/P04_Integracion",
-        "C:/file_merging/P04/P04_Completo",
-        "C:/file_merging/Aprendices/Apre_a_c",
+        "C:/file_merging/P04/P04_TODOS_DATOS",
+        "C:/file_merging/P04/P04_CURSOS_EVENTOS",
+        "C:/file_merging/P04/P04_INTEGRACION",
+        "C:/file_merging/P04/P04_FINAL",
+        "C:/file_merging/Aprendices/Apre_C_R",
         "C:/file_merging/Aprendices/Apre_Completos",
-        "C:/file_merging/Juicios/Juic_a_c",
-        "C:/file_merging/Juicios/Juic_Completos"
+        "C:/file_merging/Juicios/Juic_C_R",
+        "C:/file_merging/Juicios/Juic_Completos",
+        "C:/file_merging/Informe"
     ]
 
     # Crear las carpetas si no existen
@@ -87,6 +91,7 @@ def convert_xml_to_xls(ruta_carpeta, destino_carpeta):
             print(f"Error al convertir el archivo {file_path}: {e}")
 
 proceso_pe04_completado = False
+proceso_juicio_completado = False
 
 def actualizar_estados_botones():
     global proceso_pe04_completado
@@ -100,7 +105,7 @@ def actualizar_estados_botones():
 # Función para ordenar archivos por fecha, eliminar duplicados y filtrar registros
 def procesar_archivos_p04(carpeta_origen):
     global proceso_pe04_completado
-    carpeta_destino = "C:/file_merging/P04/Proceso_principal"
+    carpeta_destino = "C:/file_merging/P04/P04_TODOS_DATOS"
 
     # Convertir archivos XML a Excel antes de procesar
     convert_xml_to_xls(carpeta_origen, carpeta_destino)
@@ -155,16 +160,16 @@ def procesar_archivos_p04(carpeta_origen):
         print(f"Archivos combinados y guardados en: {ruta_destino}")
 
         cursos_especiales_eventos = combined_frame[combined_frame["NIVEL_FORMACION"].str.contains("CURSO ESPECIAL|EVENTO", na=False, case=False)]
-        cursos_especiales_eventos.to_excel("C:/file_merging/P04/P04_c_e/P04_c_e.xlsx", index=False)
+        cursos_especiales_eventos.to_excel("C:/file_merging/P04/P04_CURSOS_EVENTOS/P04_cursos_eventos.xlsx", index=False)
 
         integracion = combined_frame[combined_frame["NOMBRE_PROGRAMA_ESPECIAL"].str.startswith("INTEGRACIÓN", na=False)]
-        integracion.to_excel("C:/file_merging/P04/P04_Integracion/P04_Integracion.xlsx", index=False)
+        integracion.to_excel("C:/file_merging/P04/P04_INTEGRACION/P04_Integracion.xlsx", index=False)
 
         restantes = combined_frame[
             ~combined_frame["NIVEL_FORMACION"].str.contains("CURSO ESPECIAL|EVENTO", na=False, case=False) &
             ~combined_frame["NOMBRE_PROGRAMA_ESPECIAL"].str.startswith("INTEGRACIÓN", na=False)
         ]
-        restantes.to_excel("C:/file_merging/P04/P04_Completo/P04_Completo.xlsx", index=False)
+        restantes.to_excel("C:/file_merging/P04/P04_FINAL/P04_final.xlsx", index=False)
 
         proceso_pe04_completado = True
         messagebox.showinfo("Proceso PE04", "Proceso PE04 completado correctamente.")
@@ -241,18 +246,18 @@ def procesar_aprendices(carpeta_aprendices):
             print(f"Archivos de aprendices combinados guardados en: {archivo_combinado}")
 
             # Filtrar y guardar por estado CANCELADO o RETIRO VOLUNTARIO
-            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO'])]
-            ruta_salida_cancelados = "C:/file_merging/Aprendices/Apre_a_c"
+            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO','TRASLADADO' ])]
+            ruta_salida_cancelados = "C:/file_merging/Aprendices/Apre_C_R"
             if not os.path.exists(ruta_salida_cancelados):
                 os.makedirs(ruta_salida_cancelados)
             
-            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Apre_Cancelados.xlsx")
+            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Apre_Retirados.xlsx")
             df_cancelados.to_excel(archivo_cancelados, index=False)
             print(f"Archivos de aprendices cancelados guardados en: {archivo_cancelados}")
 
             # Filtrar y guardar por estado CERTIFICADO o TRASLADADO
-            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO', 'TRASLADADO'])]
-            ruta_salida_certificados = "C:/file_merging/Aprendices/Apre_a_c"
+            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO'])]
+            ruta_salida_certificados = "C:/file_merging/Aprendices/Apre_C_R"
             if not os.path.exists(ruta_salida_certificados):
                 os.makedirs(ruta_salida_certificados)
             
@@ -275,9 +280,7 @@ def iniciar_proceso_aprendices(carpeta_aprendices):
 def actualizar_barra_progreso_aprendices():
     if threading.active_count() > 1:  # Si el proceso aún se está ejecutando
         progress_bar_aprendices.update_idletasks()
-        root.after(100, actualizar_barra_progreso_aprendices)
-
-        
+        root.after(100, actualizar_barra_progreso_aprendices)      
 
         # Función para leer archivos Excel con diferentes encabezados y agregar una columna con el nombre del archivo
 def read_excel_with_header_and_filename_juicios(file_path, filename):
@@ -289,10 +292,18 @@ def read_excel_with_header_and_filename_juicios(file_path, filename):
     except Exception as e:
         print(f"Error al leer el archivo {file_path}: {e}")
         return pd.DataFrame()
+    
+
+def actualizar_estado_boton_informe():
+    global proceso_juicio_completado
+    if proceso_juicio_completado:
+        button4.configure(state='normal')
+    else:
+        button4.configure(state='disabled')  
 
 # Función para procesar y combinar archivos de juicios
 def procesar_juicios(carpeta_juicios):
-    global proceso_pe04_completado
+    global proceso_juicio_completado
     
     # Verificar si el proceso PE04 ha sido completado
     if not proceso_pe04_completado:
@@ -340,19 +351,19 @@ def procesar_juicios(carpeta_juicios):
             combined_frame.to_excel(archivo_combinado, index=False)
             print(f"Archivos de juicios combinados guardados en: {archivo_combinado}")
 
-            # Filtrar y guardar por estado CANCELADO o RETIRO VOLUNTARIO
-            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO'])]
-            ruta_salida_cancelados = "C:/file_merging/Juicios/Juic_a_c"
+            # Filtrar y guardar por estado CANCELADO, RETIRO VOLUNTARIO Y TRASLADADO
+            df_cancelados = combined_frame[combined_frame['Estado'].isin(['CANCELADO', 'RETIRO VOLUNTARIO', 'TRASLADADO'])]
+            ruta_salida_cancelados = "C:/file_merging/Juicios/Juic_C_R"
             if not os.path.exists(ruta_salida_cancelados):
                 os.makedirs(ruta_salida_cancelados)
             
-            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Juic_Cancelados.xlsx")
+            archivo_cancelados = os.path.join(ruta_salida_cancelados, "Juic_Retirados.xlsx")
             df_cancelados.to_excel(archivo_cancelados, index=False)
             print(f"Archivos de juicios cancelados guardados en: {archivo_cancelados}")
 
             # Filtrar y guardar por estado CERTIFICADO o TRASLADADO
-            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO', 'TRASLADADO'])]
-            ruta_salida_certificados = "C:/file_merging/Juicios/Juic_a_c"
+            df_certificados = combined_frame[combined_frame['Estado'].isin(['CERTIFICADO'])]
+            ruta_salida_certificados = "C:/file_merging/Juicios/Juic_C_R"
             if not os.path.exists(ruta_salida_certificados):
                 os.makedirs(ruta_salida_certificados)
             
@@ -360,7 +371,10 @@ def procesar_juicios(carpeta_juicios):
             df_certificados.to_excel(archivo_certificados, index=False)
             print(f"Archivos de juicios certificados guardados en: {archivo_certificados}")
 
+            proceso_juicio_completado = True
             messagebox.showinfo("Proceso Juicios", "Proceso Juicios completado correctamente.")
+
+            actualizar_estado_boton_informe()
 
         else:
             print("No se encontraron archivos válidos para combinar en la carpeta de juicios.")
@@ -377,6 +391,79 @@ def actualizar_barra_progreso_juicios():
         progress_bar_juicios.update_idletasks()
         root.after(600, actualizar_barra_progreso_juicios)
 
+#Crear Informe
+def generar_informe():
+    ruta_guardado = "C:/file_merging/Informe/informe_generado.xlsx"
+    os.makedirs(os.path.dirname(ruta_guardado), exist_ok=True)
+
+    def proceso():
+        try:
+            # Cargar datos de los archivos
+            juic_certificados = pd.read_excel("C:/file_merging/Juicios/Juic_C_R/Juic_Certificados.xlsx")
+            p04_completo = pd.read_excel("C:/file_merging/P04/P04_FINAL/P04_final.xlsx")
+
+            # Crear un nuevo archivo Excel con openpyxl
+            workbook = Workbook()
+
+            # Crear la hoja "Informe" y agregar los encabezados en negrita
+            hoja_informe = workbook.active
+            hoja_informe.title = "Informe"
+
+            encabezados_informe = [
+                "Ficha&ID", "Técnica", "Transversal", "Ficha", 
+                "Lider", "Programa", "Titulo", "Identificación", 
+                "Nombre", "Apellidos", "Tipo de Documento"
+            ]
+            
+            for col, encabezado in enumerate(encabezados_informe, start=1):
+                cell = hoja_informe.cell(row=1, column=col, value=encabezado)
+                cell.font = Font(bold=True)
+
+            # Crear la hoja "Juic_Certificados" y copiar los datos
+            hoja_juic_certificados = workbook.create_sheet("Juic_Certificados")
+            hoja_juic_certificados.append(juic_certificados.columns.tolist())  # Encabezados
+            for col in hoja_juic_certificados.iter_cols(min_row=1, max_row=1, min_col=1, max_col=len(juic_certificados.columns)):
+                for cell in col:
+                    cell.font = Font(bold=True)
+            for _, row in juic_certificados.iterrows():
+                hoja_juic_certificados.append(row.tolist())
+
+            # Crear la hoja "P04_Completo" y copiar los datos
+            hoja_p04_completo = workbook.create_sheet("P04_Completo")
+            hoja_p04_completo.append(p04_completo.columns.tolist())  # Encabezados
+            for col in hoja_p04_completo.iter_cols(min_row=1, max_row=1, min_col=1, max_col=len(p04_completo.columns)):
+                for cell in col:
+                    cell.font = Font(bold=True)
+            for _, row in p04_completo.iterrows():
+                hoja_p04_completo.append(row.tolist())
+
+            # Crear la hoja "Ficha&Ambiente"
+            hoja_ficha_ambiente = workbook.create_sheet("Ficha&Ambiente")
+            
+            # Cargar datos desde el archivo "Informe_Aprendices_29-05-2024.xlsm"
+            archivo_ficha_ambiente = pd.read_excel("C:/Informe_Aprendices_29-05-2024.xlsm", sheet_name=None)
+            for nombre_hoja, df in archivo_ficha_ambiente.items():
+                # Si hay más de una hoja, decidir cuál usar o combinarlas si es necesario
+                # Aquí estamos usando la primera hoja encontrada
+                if nombre_hoja == list(archivo_ficha_ambiente.keys())[0]:
+                    hoja_ficha_ambiente_df = df
+
+            # Agregar los datos de "Ficha&Ambiente" a la hoja creada
+            hoja_ficha_ambiente.append(hoja_ficha_ambiente_df.columns.tolist())  # Encabezados
+            for col in hoja_ficha_ambiente.iter_cols(min_row=1, max_row=1, min_col=1, max_col=len(hoja_ficha_ambiente_df.columns)):
+                for cell in col:
+                    cell.font = Font(bold=True)
+            for _, row in hoja_ficha_ambiente_df.iterrows():
+                hoja_ficha_ambiente.append(row.tolist())
+
+            # Guardar los cambios
+            workbook.save(ruta_guardado)
+            messagebox.showinfo("Proceso Completo", "El archivo ha sido generado exitosamente.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Se produjo un error durante el proceso: {str(e)}")
+
+    thread = threading.Thread(target=proceso)
+    thread.start()
 
 # Creación de carpetas al inicio del programa
 crear_carpetas()
@@ -540,6 +627,7 @@ if __name__ == "__main__":
     if not proceso_pe04_completado:
         button2.configure(state='disabled')
         button3.configure(state='disabled')
+        button4.configure(state='disabled')
 
     # Crear widgets  para la primera vista
     frame_widgets_vista1 = ctk.CTkFrame(app.vista1, fg_color='white')
@@ -574,21 +662,29 @@ if __name__ == "__main__":
     # Crear widgets para la cuarta vista
     frame_widgets_vista4 = ctk.CTkFrame(app.vista4, fg_color='white')
     frame_widgets_vista4.pack(pady=20, padx=20)
+    boton_generar_informe = ctk.CTkButton(frame_widgets_vista4, text="Generar Informe", fg_color='#1FAD00', command=generar_informe)
+    boton_generar_informe.grid(row=0, column=0, columnspan=3, pady=(10, 10))
 
     label_progreso = ctk.CTkLabel(frame_widgets_vista1, text="Barra de progreso", text_color='black')
     label_progreso.grid(row=1, column=0, columnspan=3, pady=(25, 5), sticky='s')
-    progress_bar = ttk.Progressbar(frame_widgets_vista1, orient="horizontal", length=300, mode="determinate")
+    progress_bar = ttk.Progressbar(frame_widgets_vista1, orient="horizontal", length=600, mode="determinate")
     progress_bar.grid(row=2, column=0, columnspan=3, pady=(5, 20))
 
     label_progreso_aprendices = ctk.CTkLabel(frame_widgets_vista2, text="Barra de progreso", text_color='black')
     label_progreso_aprendices.grid(row=1, column=0, columnspan=3, pady=(25, 5), sticky='s')
-    progress_bar_aprendices = ttk.Progressbar(frame_widgets_vista2, orient="horizontal", length=300, mode="determinate")
+    progress_bar_aprendices = ttk.Progressbar(frame_widgets_vista2, orient="horizontal", length=600, mode="determinate")
     progress_bar_aprendices.grid(row=2, column=0, columnspan=3, pady=(5, 20))
 
     label_progreso_juicios = ctk.CTkLabel(frame_widgets_vista3, text="Barra de progreso", text_color='black')
     label_progreso_juicios.grid(row=1, column=0, columnspan=3, pady=(25, 5), sticky='s')
-    progress_bar_juicios = ttk.Progressbar(frame_widgets_vista3, orient="horizontal", length=300, mode="determinate")
+    progress_bar_juicios = ttk.Progressbar(frame_widgets_vista3, orient="horizontal", length=600, mode="determinate")
     progress_bar_juicios.grid(row=2, column=0, columnspan=3, pady=(5, 20))
+
+    label_progreso_informe = ctk.CTkLabel(frame_widgets_vista4, text="Barra de progreso", text_color='black')
+    label_progreso_informe.grid(row=1, column=0, columnspan=3, pady=(25, 5), sticky='s')
+    progress_bar_informe = ttk.Progressbar(frame_widgets_vista4, orient="horizontal", length=600, mode="determinate")
+    progress_bar_informe.grid(row=2, column=0, columnspan=3, pady=(5, 20))
+    
 
     # Centrar la ventana en la pantalla
     screen_width = root.winfo_screenwidth()
